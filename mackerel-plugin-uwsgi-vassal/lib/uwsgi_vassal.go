@@ -19,6 +19,15 @@ type UWSGIVassalPlugin struct {
 }
 
 // {
+//   "version":"2.0.7-debian",
+//   "listen_queue":0,
+//   "listen_queue_errors":0,
+//   "signal_queue":0,
+//   "load":0,
+//   "pid":77393,
+//   "uid":0,
+//   "gid":0,
+//   "cwd":"/etc/uwsgi/vassals",
 //   "workers": [{
 //     "id": 1,
 //     "pid": 31759,
@@ -114,9 +123,10 @@ type UWSGIWorker struct {
 	Status   string `json:"status"`
 }
 
-// UWSGIWorkers sturct for json struct
-type UWSGIWorkers struct {
-	Workers []UWSGIWorker `json:"workers"`
+// UWSGIStats sturct for json struct
+type UWSGIStats struct {
+	ListenQueue uint64        `json:"listen_queue"`
+	Workers     []UWSGIWorker `json:"workers"`
 }
 
 // FetchMetrics interface for mackerelplugin
@@ -148,12 +158,12 @@ func (p UWSGIVassalPlugin) FetchMetrics() (map[string]float64, error) {
 		return nil, err
 	}
 
-	var workers UWSGIWorkers
-	if err := decoder.Decode(&workers); err != nil {
+	var uwsgiStats UWSGIStats
+	if err := decoder.Decode(&uwsgiStats); err != nil {
 		return nil, err
 	}
-
-	for _, worker := range workers.Workers {
+	stat["queue"] = float64(uwsgiStats.ListenQueue)
+	for _, worker := range uwsgiStats.Workers {
 		switch worker.Status {
 		case "idle", "busy", "cheap", "pause":
 			stat[worker.Status]++
@@ -169,6 +179,13 @@ func (p UWSGIVassalPlugin) GraphDefinition() map[string]mp.Graphs {
 	labelPrefix := strings.Title(p.Prefix)
 
 	var graphdef = map[string]mp.Graphs{
+		(p.Prefix + ".queue"): {
+			Label: labelPrefix + " Queue",
+			Unit:  "integer",
+			Metrics: []mp.Metrics{
+				{Name: "queue", Label: "Requests", Diff: false},
+			},
+		},
 		(p.Prefix + ".workers"): {
 			Label: labelPrefix + " Workers",
 			Unit:  "integer",
